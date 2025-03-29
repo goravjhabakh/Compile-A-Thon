@@ -50,8 +50,41 @@ class pPIM_Instruction:
                 (self.row_addr << 6)
         return f"{instr:024b}"
 
-# Get the matrix sizes from the .ll file
 def detect_matrix_sizes(llvm_ir: str) -> Tuple[ParallelMatrixLayout, ParallelMatrixLayout, ParallelMatrixLayout]:
+    # Adjusted regex to match alloca patterns
+    pattern = r"alloca \[(\d+) x \[(\d+) x i32\]\]"
+    matches = list(re.finditer(pattern, llvm_ir))
+    
+    if len(matches) < 2:
+        raise ValueError("Could not find sufficient matrix allocations in LLVM IR")
+    
+    # Extract matrix dimensions from LLVM IR
+    A_rows, A_cols = map(int, matches[0].groups())
+    B_rows, B_cols = map(int, matches[1].groups())
+
+    if A_cols != B_rows:
+        raise ValueError("Matrix multiplication requires A_cols == B_rows")
+    
+    # Base address assignments
+    A_base = 0x100
+    B_base = A_base + A_rows * A_cols * 4
+    C_base = B_base + B_rows * B_cols * 4
+
+    # Create memory layouts
+    A = ParallelMatrixLayout(A_rows, A_cols, A_base)
+    B = ParallelMatrixLayout(B_rows, B_cols, B_base)
+    C = ParallelMatrixLayout(A_rows, B_cols, C_base)
+
+    # Assign cores
+    A.assign_cores()
+    B.assign_cores()
+    C.assign_cores()
+
+    print(f"Detected Matrix Sizes - A: {A_rows}x{A_cols}, B: {B_rows}x{B_cols}, C: {A_rows}x{B_cols}")
+    return A, B, C
+
+# Get the matrix sizes from the .ll file
+def detect_matrix_sizes2(llvm_ir: str) -> Tuple[ParallelMatrixLayout, ParallelMatrixLayout, ParallelMatrixLayout]:
     # Find matrix allocations (adjust pattern for your specific LLVM IR)
     pattern = r"alloca \[(\d+) x \[(\d+) x i32\]\]"
     matches = list(re.finditer(pattern, llvm_ir))
@@ -84,7 +117,7 @@ def detect_matrix_sizes(llvm_ir: str) -> Tuple[ParallelMatrixLayout, ParallelMat
 def generate_LUT_programming() -> List[pPIM_Instruction]:
     """Generate LUT programming instructions"""
     instructions = []
-    for core in range(4):  # Program 4 cores
+    for core in range(8):  # Program 4 cores
         instructions.append(pPIM_Instruction(
             pPIM_Instruction.PROG,
             pointer=core,
