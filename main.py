@@ -50,6 +50,7 @@ class pPIM_Instruction:
                 (self.row_addr << 6)
         return f"{instr:024b}"
 
+# Get the matrix sizes from the .ll file
 def detect_matrix_sizes(llvm_ir: str) -> Tuple[ParallelMatrixLayout, ParallelMatrixLayout, ParallelMatrixLayout]:
     # Adjusted regex to match alloca patterns
     pattern = r"alloca \[(\d+) x \[(\d+) x i32\]\]"
@@ -83,41 +84,11 @@ def detect_matrix_sizes(llvm_ir: str) -> Tuple[ParallelMatrixLayout, ParallelMat
     print(f"Detected Matrix Sizes - A: {A_rows}x{A_cols}, B: {B_rows}x{B_cols}, C: {A_rows}x{B_cols}")
     return A, B, C
 
-# Get the matrix sizes from the .ll file
-def detect_matrix_sizes2(llvm_ir: str) -> Tuple[ParallelMatrixLayout, ParallelMatrixLayout, ParallelMatrixLayout]:
-    # Find matrix allocations (adjust pattern for your specific LLVM IR)
-    pattern = r"alloca \[(\d+) x \[(\d+) x i32\]\]"
-    matches = list(re.finditer(pattern, llvm_ir))
-    
-    if len(matches) < 2:
-        raise ValueError("Could not find matrix allocations")
-    
-    # First matrix (A): 3x4
-    A_rows, A_cols = 3, 4
-    # Second matrix (B): 4x2
-    B_rows, B_cols = 4, 2
-    
-    # Memory layout with 4-byte alignment
-    A_base = 0x100
-    B_base = A_base + A_rows * A_cols * 4
-    C_base = B_base + B_rows * B_cols * 4
-    
-    A = ParallelMatrixLayout(A_rows, A_cols, A_base)
-    B = ParallelMatrixLayout(B_rows, B_cols, B_base)
-    C = ParallelMatrixLayout(A_rows, B_cols, C_base)
-    
-    A.assign_cores()
-    B.assign_cores()
-    C.assign_cores()
-    
-    print(f"Matrix A: {A_rows}x{A_cols}, B: {B_rows}x{B_cols}, C: {A_rows}x{B_cols}")
-    return A, B, C
-
 # Generating Look up tables
 def generate_LUT_programming() -> List[pPIM_Instruction]:
     """Generate LUT programming instructions"""
     instructions = []
-    for core in range(8):  # Program 4 cores
+    for core in range(8):  # Program 8 cores
         instructions.append(pPIM_Instruction(
             pPIM_Instruction.PROG,
             pointer=core,
